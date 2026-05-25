@@ -6,6 +6,7 @@ let alivePlayers = [];
 
 let soundOn = true;
 let narratorOn = true;
+let customPlayerNames = [];
 
 /* ================= ROLE INFO ================= */
 
@@ -128,6 +129,103 @@ function backMenu() {
 
 }
 
+/* ================= PLAYER SETTINGS ================= */
+
+function showPlayerSettings() {
+
+    playSound("clickSound");
+
+    showScreen("playerSettingsScreen");
+
+    generateSettingsPlayerInputs();
+
+}
+
+function generateSettingsPlayerInputs() {
+
+    let total =
+        parseInt(
+            document.getElementById(
+                "settingsPlayerCount"
+            ).value
+        );
+
+    let container =
+        document.getElementById(
+            "settingsPlayerInputs"
+        );
+
+    container.innerHTML = "";
+
+    for (let i = 1; i <= total; i++) {
+
+        let savedName =
+            customPlayerNames[i - 1] ||
+            "Player " + i;
+
+        container.innerHTML += `
+
+        <input
+        type="text"
+        id="settingsPlayer${i}"
+        value="${savedName}"
+        placeholder="Player ${i} Name">
+
+        `;
+
+    }
+
+}
+
+function savePlayerNames() {
+
+    customPlayerNames = [];
+
+    let total =
+        parseInt(
+            document.getElementById(
+                "settingsPlayerCount"
+            ).value
+        );
+
+    for (let i = 1; i <= total; i++) {
+
+        let name =
+            document.getElementById(
+                "settingsPlayer" + i
+            ).value;
+
+        if (name.trim() === "") {
+
+            name = "Player " + i;
+
+        }
+
+        customPlayerNames.push(name);
+
+    }
+
+    playSound("clickSound");
+
+    alert("Player names saved!");
+
+}
+
+function saveDiscussionTime() {
+
+    discussionTime =
+        parseInt(
+            document.getElementById(
+                "discussionTimeInput"
+            ).value
+        );
+
+    playSound("clickSound");
+
+    alert("Discussion timer updated!");
+
+}
+
 /* ================= SETTINGS ================= */
 
 function toggleSound() {
@@ -157,6 +255,8 @@ function toggleNarrator() {
 }
 
 /* ================= START GAME ================= */
+
+let discussionTime = 30;
 
 function startGame() {
 
@@ -212,7 +312,11 @@ function startGame() {
 
     for (let i = 0; i < roles.length; i++) {
 
-        players.push("Player " + (i + 1));
+        let playerName =
+            customPlayerNames[i] ||
+            "Player " + (i + 1);
+
+        players.push(playerName);
 
         alivePlayers.push(true);
 
@@ -300,7 +404,7 @@ function nextPlayer() {
 
 function startTimer() {
 
-    let time = 30;
+    let time = discussionTime;
 
     document
         .getElementById("timer")
@@ -341,62 +445,225 @@ function startVoting() {
 
 /* ================= VOTING BUTTONS ================= */
 
-function startVotingButtons() {
+let votes = {};
+let currentVoterIndex = 0;
+let aliveIndexes = [];
+
+/* ================= START VOTING ================= */
+
+function startVoting() {
+
+    showScreen("voteScreen");
+
+    votes = {};
+
+    currentVoterIndex = 0;
+
+    aliveIndexes = [];
+
+    for (let i = 0; i < players.length; i++) {
+
+        if (alivePlayers[i]) {
+
+            aliveIndexes.push(i);
+
+        }
+
+    }
+
+    showVotingTurn();
+
+}
+
+/* ================= SHOW VOTING TURN ================= */
+
+function showVotingTurn() {
 
     let voteList =
         document.getElementById("voteList");
 
+    let voteResult =
+        document.getElementById("voteResult");
+
     voteList.innerHTML = "";
 
-    players.forEach((player, index) => {
+    if (
+        currentVoterIndex >=
+        aliveIndexes.length
+    ) {
 
-        if (alivePlayers[index]) {
-
-            let btn =
-                document.createElement("button");
-
-            btn.innerText = player;
-
-            btn.onclick = () => voteOut(index);
-
-            voteList.appendChild(btn);
-
-        }
-
-    });
-
-}
-
-/* ================= VOTE OUT ================= */
-
-function voteOut(index) {
-
-    alivePlayers[index] = false;
-
-    playSound("voteSound");
-
-    let role =
-        roles[index];
-
-    /* ================= */
-    /* JOKER WIN */
-    /* ================= */
-
-    if (role === "JOKER") {
-
-        endGame("JOKER WINS");
+        finishVoting();
 
         return;
 
     }
 
-    document
-        .getElementById("voteResult")
-        .innerText =
-        players[index] +
-        " was voted out";
+    let voter =
+        aliveIndexes[currentVoterIndex];
 
-    startVotingButtons();
+    voteResult.innerHTML = `
+
+    <h3 style="margin-bottom:15px;">
+        ${players[voter]}'s Turn To Vote
+    </h3>
+
+    `;
+
+    for (let i = 0; i < players.length; i++) {
+
+        if (
+            alivePlayers[i] &&
+            i !== voter
+        ) {
+
+            let btn =
+                document.createElement(
+                    "button"
+                );
+
+            btn.innerText =
+                players[i];
+
+            btn.onclick = () => {
+
+                castVote(i);
+
+            };
+
+            voteList.appendChild(btn);
+
+        }
+
+    }
+
+}
+
+/* ================= CAST VOTE ================= */
+
+function castVote(votedPlayer) {
+
+    playSound("voteSound");
+
+    if (!votes[votedPlayer]) {
+
+        votes[votedPlayer] = 0;
+
+    }
+
+    votes[votedPlayer]++;
+
+    currentVoterIndex++;
+
+    showVotingTurn();
+
+}
+
+/* ================= FINISH VOTING ================= */
+
+function finishVoting() {
+
+    let highestVotes = 0;
+
+    let votedOut = null;
+
+    let tie = false;
+
+    for (let player in votes) {
+
+        if (votes[player] > highestVotes) {
+
+            highestVotes =
+                votes[player];
+
+            votedOut = parseInt(player);
+
+            tie = false;
+
+        }
+
+        else if (
+            votes[player] === highestVotes
+        ) {
+
+            tie = true;
+
+        }
+
+    }
+
+    let result =
+        document.getElementById(
+            "voteResult"
+        );
+
+    document.getElementById(
+        "voteList"
+    ).innerHTML = "";
+
+    /* ================= TIE ================= */
+
+    if (tie || votedOut === null) {
+
+        result.innerHTML = `
+
+        <h2>
+            No player was eliminated
+        </h2>
+
+        <p style="margin-top:10px;">
+            Mafia are still in the game...
+        </p>
+
+        `;
+
+        return;
+
+    }
+
+    /* ================= ELIMINATE PLAYER ================= */
+
+    alivePlayers[votedOut] = false;
+
+    /* ================= JOKER WIN ================= */
+
+    if (roles[votedOut] === "JOKER") {
+
+        result.innerHTML = `
+
+    <h2>
+        ${players[votedOut]} was voted out
+    </h2>
+
+    <p style="margin-top:10px;">
+        Joker achieved his mission!
+    </p>
+
+    `;
+
+        setTimeout(() => {
+
+            endGame("JOKER WINS");
+
+        }, 1500);
+
+        return;
+
+    }
+
+    /* ================= NORMAL ELIMINATION ================= */
+
+    result.innerHTML = `
+
+    <h2>
+        ${players[votedOut]}
+        was voted out
+    </h2>
+
+    <p style="margin-top:10px;">
+    Mafia are still in the game...
+    </p>
+
+    `;
 
 }
 
